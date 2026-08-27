@@ -1,159 +1,87 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Planilha Simples - Estilo Excel</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
-            background-color: #f0f0f0;
-        }
-        
-        .container {
-            background-color: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            overflow-x: auto;
-        }
-        
-        h1 {
-            color: #217346;
-            margin-bottom: 20px;
-            font-size: 24px;
-        }
-        
-        table {
-            border-collapse: collapse;
-            width: 100%;
-            min-width: 600px;
-            background-color: white;
-        }
-        
-        th, td {
-            border: 1px solid #d0d0d0;
-            padding: 8px 12px;
-            text-align: left;
-            min-width: 80px;
-        }
-        
-        th {
-            background-color: #217346;
-            color: white;
-            font-weight: bold;
-            text-align: center;
-        }
-        
-        .coluna-numero {
-            background-color: #f2f2f2;
-            font-weight: bold;
-            text-align: center;
-            width: 40px;
-            color: #666;
-        }
-        
-        tr:nth-child(even) {
-            background-color: #f9f9f9;
-        }
-        
-        tr:hover {
-            background-color: #e8f5e9;
-        }
-        
-        td:focus {
-            outline: 2px solid #217346;
-            background-color: #fffde7;
-        }
-        
-        .rodape {
-            margin-top: 15px;
-            font-size: 12px;
-            color: #666;
-            text-align: center;
-        }
-    </style>
+    <title>Planilha Web</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="container">
-        <h1>📊 Planilha de Vendas - Estilo Excel</h1>
-        
-        <table contenteditable="true">
-            <thead>
-                <tr>
-                    <th class="coluna-numero">#</th>
-                    <th>Produto</th>
-                    <th>Categoria</th>
-                    <th>Preço</th>
-                    <th>Quantidade</th>
-                    <th>Total</th>
-                    <th>Status</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td class="coluna-numero">1</td>
-                    <td>Notebook Dell</td>
-                    <td>Eletrônicos</td>
-                    <td>R$ 3.500,00</td>
-                    <td>5</td>
-                    <td>R$ 17.500,00</td>
-                    <td>✅ Em estoque</td>
-                </tr>
-                <tr>
-                    <td class="coluna-numero">2</td>
-                    <td>Monitor Samsung 27"</td>
-                    <td>Eletrônicos</td>
-                    <td>R$ 1.200,00</td>
-                    <td>8</td>
-                    <td>R$ 9.600,00</td>
-                    <td>✅ Em estoque</td>
-                </tr>
-                <tr>
-                    <td class="coluna-numero">3</td>
-                    <td>Teclado Mecânico</td>
-                    <td>Acessórios</td>
-                    <td>R$ 350,00</td>
-                    <td>15</td>
-                    <td>R$ 5.250,00</td>
-                    <td>⚠️ Poucas unidades</td>
-                </tr>
-                <tr>
-                    <td class="coluna-numero">4</td>
-                    <td>Mouse Wireless</td>
-                    <td>Acessórios</td>
-                    <td>R$ 120,00</td>
-                    <td>20</td>
-                    <td>R$ 2.400,00</td>
-                    <td>✅ Em estoque</td>
-                </tr>
-                <tr>
-                    <td class="coluna-numero">5</td>
-                    <td>Impressora HP</td>
-                    <td>Eletrônicos</td>
-                    <td>R$ 800,00</td>
-                    <td>3</td>
-                    <td>R$ 2.400,00</td>
-                    <td>❌ Esgotado</td>
-                </tr>
-                <tr>
-                    <td class="coluna-numero">6</td>
-                    <td>Webcam Full HD</td>
-                    <td>Acessórios</td>
-                    <td>R$ 250,00</td>
-                    <td>12</td>
-                    <td>R$ 3.000,00</td>
-                    <td>✅ Em estoque</td>
-                </tr>
-            </tbody>
-        </table>
-        
-        <div class="rodape">
-            💡 Dica: Clique em qualquer célula para editar o conteúdo
+    <div class="app">
+        <!-- Toolbar -->
+        <div class="toolbar">
+            <div class="toolbar-group">
+                <select id="fontFamily" title="Fonte">
+                    <option value="Arial">Arial</option>
+                    <option value="Calibri">Calibri</option>
+                    <option value="Times New Roman">Times New Roman</option>
+                    <option value="Verdana">Verdana</option>
+                    <option value="Courier New">Courier New</option>
+                </select>
+                <select id="fontSize" title="Tamanho da fonte">
+                    <option value="10">10</option>
+                    <option value="11">11</option>
+                    <option value="12" selected>12</option>
+                    <option value="14">14</option>
+                    <option value="16">16</option>
+                    <option value="18">18</option>
+                    <option value="20">20</option>
+                    <option value="24">24</option>
+                </select>
+                <button class="toolbar-btn" id="boldBtn" title="Negrito"><b>B</b></button>
+                <button class="toolbar-btn" id="italicBtn" title="Itálico"><i>I</i></button>
+            </div>
+
+            <div class="toolbar-group">
+                <label for="bgColor">Cor de fundo:</label>
+                <input type="color" id="bgColor" value="#ffffff">
+                <label for="textColor">Cor do texto:</label>
+                <input type="color" id="textColor" value="#000000">
+            </div>
+
+            <div class="toolbar-group">
+                <select id="cellType" title="Tipo de valor">
+                    <option value="text">Texto</option>
+                    <option value="number">Número</option>
+                    <option value="currency">Moeda (R$)</option>
+                </select>
+            </div>
+
+            <div class="toolbar-group">
+                <button class="toolbar-btn" id="insertRowBtn" title="Inserir linha">+ Linha</button>
+                <button class="toolbar-btn" id="deleteRowBtn" title="Excluir linha">- Linha</button>
+                <button class="toolbar-btn" id="insertColBtn" title="Inserir coluna">+ Coluna</button>
+                <button class="toolbar-btn" id="deleteColBtn" title="Excluir coluna">- Coluna</button>
+            </div>
+
+            <div class="toolbar-group">
+                <button class="toolbar-btn export-btn" id="exportBtn" title="Exportar para Excel">
+                    <span>📊</span> Exportar
+                </button>
+            </div>
+        </div>
+
+        <!-- Formula bar -->
+        <div class="formula-bar">
+            <input type="text" id="cellRef" placeholder="A1" readonly>
+            <input type="text" id="formulaInput" placeholder="Digite o valor da célula...">
+        </div>
+
+        <!-- Spreadsheet -->
+        <div class="spreadsheet-container">
+            <div class="spreadsheet" id="spreadsheet"></div>
+        </div>
+
+        <!-- Sheets tabs -->
+        <div class="sheets-container">
+            <div class="sheets" id="sheets">
+                <button class="add-sheet-btn" id="addSheetBtn" title="Adicionar nova aba">+</button>
+            </div>
         </div>
     </div>
+
+    <!-- Biblioteca SheetJS para exportação Excel -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+    <script src="script.js"></script>
 </body>
 </html>
-
-C:\Documentos\EFE\teste.html

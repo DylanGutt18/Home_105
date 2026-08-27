@@ -1,0 +1,510 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Arial', sans-serif;
+    background: #f0f0f0;
+    height: 100vh;
+    overflow: hidden;
+}
+
+.app {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+}
+
+/* Toolbar */
+.toolbar {
+    background: #f9fbfd;
+    border-bottom: 1px solid #e0e0e0;
+    padding: 8px;
+    display: flex;
+    gap: 15px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.toolbar-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 8px;
+    border-right: 1px solid #e0e0e0;
+}
+
+.toolbar-group:last-child {
+    border-right: none;
+}
+
+.toolbar-btn {
+    width: 35px;
+    height: 35px;
+    border: 1px solid #ccc;
+    background: white;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.toolbar-btn:hover {
+    background: #e8f0fe;
+    border-color: #1a73e8;
+}
+
+.toolbar-btn.active {
+    background: #e8f0fe;
+    border-color: #1a73e8;
+    color: #1a73e8;
+}
+
+.toolbar-btn.delete-btn:hover {
+    background: #fce8e6;
+    border-color: #d93025;
+    color: #d93025;
+}
+
+.toolbar select,
+.toolbar input[type="color"] {
+    padding: 5px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.toolbar label {
+    font-size: 13px;
+    color: #666;
+}
+
+/* Formula bar */
+.formula-bar {
+    background: white;
+    border-bottom: 1px solid #e0e0e0;
+    padding: 5px 10px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+#cellRef {
+    width: 80px;
+    padding: 5px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    text-align: center;
+    font-weight: bold;
+    background: #f8f9fa;
+}
+
+#formulaInput {
+    flex: 1;
+    padding: 5px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+/* Spreadsheet */
+.spreadsheet-container {
+    flex: 1;
+    overflow: auto;
+    background: white;
+    position: relative;
+}
+
+.spreadsheet {
+    display: grid;
+    min-width: max-content;
+}
+
+/* Cells */
+.cell {
+    border: 1px solid #e0e0e0;
+    padding: 8px;
+    font-size: 14px;
+    min-width: 100px;
+    min-height: 35px;
+    cursor: cell;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    white-space: nowrap;
+    transition: background-color 0.2s;
+}
+
+.cell:hover {
+    background-color: #f8f9fa;
+}
+
+.cell.selected {
+    outline: 2px solid #1a73e8;
+    outline-offset: -2px;
+}
+
+.cell.editing {
+    background: white;
+    border: 2px solid #1a73e8;
+    padding: 5px;
+}
+
+.cell.editing input {
+    border: none;
+    outline: none;
+    width: 100%;
+    height: 100%;
+    font-size: inherit;
+    font-family: inherit;
+    background: transparent;
+}
+
+.cell.currency {
+    text-align: right;
+}
+
+.cell.number {
+    text-align: right;
+}
+
+/* Header cells */
+.cell.header {
+    background: #f1f3f4;
+    font-weight: bold;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: sticky;
+    top: 0;
+    left: 0;
+    z-index: 10;
+}
+
+.cell.header:hover {
+    background: #e8eaed;
+}
+
+.cell.header.row-header {
+    position: sticky;
+    left: 0;
+    background: #f1f3f4;
+    z-index: 5;
+}
+
+.cell.header.corner {
+    position: sticky;
+    top: 0;
+    left: 0;
+    z-index: 20;
+    background: #e8eaed;
+    width: 100px;
+}
+
+/* Sheets tabs */
+.sheets-container {
+    background: #f1f3f4;
+    padding: 8px;
+    border-top: 1px solid #e0e0e0;
+}
+
+.sheets {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    overflow-x: auto;
+    padding-bottom: 4px;
+}
+
+.sheet-tab {
+    padding: 8px 15px;
+    background: white;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s;
+}
+
+.sheet-tab.active {
+    background: #e8f0fe;
+    border-color: #1a73e8;
+    font-weight: bold;
+}
+
+.sheet-tab:hover {
+    background: #e8eaed;
+}
+
+.sheet-tab input {
+    border: none;
+    outline: none;
+    background: transparent;
+    font-size: 14px;
+    width: 80px;
+    font-family: inherit;
+}
+
+.add-sheet-btn {
+    width: 35px;
+    height: 35px;
+    border: 1px solid #ccc;
+    background: white;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.add-sheet-btn:hover {
+    background: #e8f0fe;
+    border-color: #1a73e8;
+}
+
+/* Context menu */
+.context-menu {
+    position: absolute;
+    background: white;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    padding: 8px;
+    z-index: 1000;
+    min-width: 200px;
+}
+
+.context-menu-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.context-menu-item:hover {
+    background: #e8f0fe;
+}
+
+.context-menu-separator {
+    height: 1px;
+    background: #eee;
+    margin: 5px 0;
+}
+
+/* Row/column resize */
+.resize-handle {
+    position: absolute;
+    width: 3px;
+    height: 100%;
+    background: transparent;
+    cursor: col-resize;
+    top: 0;
+    right: -2px;
+}
+
+.resize-handle:hover {
+    background: #1a73e8;
+}
+
+/* Scrolling and sizing */
+::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #ccc;
+    border-radius: 6px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #999;
+}
+
+/* Row number column */
+.row-numbers {
+    position: sticky;
+    left: 0;
+    background: #f1f3f4;
+    z-index: 5;
+}
+
+/* Status bar */
+.status-bar {
+    background: #f1f3f4;
+    padding: 5px 10px;
+    border-top: 1px solid #e0e0e0;
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: #666;
+}
+
+/* Adicione estas classes ao final do arquivo */
+
+.export-btn {
+    width: auto;
+    padding: 0 12px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 14px;
+    font-weight: 500;
+    color: #1a73e8;
+    border-color: #1a73e8;
+    background: white;
+}
+
+.export-btn:hover {
+    background: #e8f0fe;
+    border-color: #1a73e8;
+    color: #1a73e8;
+}
+
+.export-btn span {
+    font-size: 16px;
+}
+
+/* Adicionar um badge de contagem de linhas */
+.row-count {
+    position: fixed;
+    bottom: 10px;
+    right: 10px;
+    background: #1a73e8;
+    color: white;
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: bold;
+    z-index: 1000;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+/* Adicione estas classes ao final do arquivo */
+
+/* Estilo para células encontradas na busca */
+.cell.found {
+    outline: 3px solid #fbbc04 !important;
+    background-color: #fef7e0 !important;
+}
+
+/* Estilo para células mescladas */
+.cell.merged {
+    background-color: #e8f0fe;
+}
+
+/* Estilo para células com hiperlink */
+.cell a {
+    color: #1a73e8 !important;
+    text-decoration: underline !important;
+}
+
+/* Estilo para o campo de busca */
+#searchInput {
+    padding: 5px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 14px;
+    margin-right: 5px;
+}
+
+/* Estilo para o botão de busca */
+.toolbar-btn {
+    font-size: 16px;
+}
+
+/* Estilo para menu de contexto */
+.context-menu {
+    position: absolute;
+    background: white;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    padding: 8px;
+    z-index: 1000;
+    min-width: 200px;
+    animation: slideIn 0.2s ease;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-5px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.context-menu-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transition: background 0.2s;
+}
+
+.context-menu-item:hover {
+    background: #e8f0fe;
+}
+
+.context-menu-separator {
+    height: 1px;
+    background: #eee;
+    margin: 5px 0;
+}
+
+/* Handle para redimensionar colunas */
+.resize-handle {
+    position: absolute;
+    right: -2px;
+    top: 0;
+    width: 5px;
+    height: 100%;
+    cursor: col-resize;
+    background: transparent;
+    transition: background 0.2s;
+}
+
+.resize-handle:hover {
+    background: #1a73e8;
+}
+
+/* Botões de exportação e busca */
+.export-btn {
+    width: auto;
+    padding: 0 12px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 14px;
+    font-weight: 500;
+    color: #1a73e8;
+    border-color: #1a73e8;
+    background: white;
+}
+
+.export-btn:hover {
+    background: #e8f0fe;
+    border-color: #1a73e8;
+    color: #1a73e8;
+}
