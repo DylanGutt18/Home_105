@@ -1,4 +1,4 @@
-class Spreadsheet {
+lclass Spreadsheet {
     constructor() {
         this.sheets = [];
         this.activeSheet = null;
@@ -23,6 +23,9 @@ class Spreadsheet {
         this.setupToolbar();
         this.setupExport();
         this.setupContextMenu();
+        this.setupMobile();
+        this.setupTouchEvents();
+        this.setupResizeObserver();
         
         // Atualizar contador de linhas
         this.updateRowCount();
@@ -598,6 +601,7 @@ class Spreadsheet {
         
         const mean = values.reduce((a, b) => a + b) / values.length;
         const variance = values.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / (values.length - 1);
+        
         return Math.sqrt(variance);
     }
     
@@ -622,888 +626,444 @@ class Spreadsheet {
     }
     
     processArithmetic(sheet, row, col, expression) {
-        expression = this.replaceCellReferences(sheet, expression);
-        expression = expression.replace(/(\d+),(\d+)/g, '$1.$2');
-        expression = expression.replace(/\^/g, '**');
+        // Substituir referências de células por seus valores
+        expression = expression.replace(/([A-Z]+)(\d+)/g, (match, colName, rowNum) => {
+            const cellRow = parseInt(rowNum) - 1;
+            const cellCol = this.getColumnIndex(colName);
+            return this.getNumericValue(sheet, cellRow, cellCol);
+        });
         
+        // Substituir vírgulas por pontos para cálculos
+        expression = expression.replace(/,/g, '.');
+        
+        // Avaliar expressão com eval seguro
         try {
-            const result = Function('"use strict"; return (' + expression + ')')();
-            return typeof result === 'number' ? parseFloat(result.toFixed(2)) : result;
+            return Function('"use strict"; return (' + expression + ')')();
         } catch (error) {
             return '#ERRO!';
         }
     }
     
-    replaceCellReferences(sheet, expression) {
-        return expression.replace(/([A-Z]+)(\d+)/g, (match, colName, rowNum) => {
-            const row = parseInt(rowNum) - 1;
-            const col = this.getColumnIndex(colName);
-            const value = this.getNumericValue(sheet, row, col);
-            return value;
-        });
-    }
-    
+    // Métodos de renderização e interação
     render() {
         const spreadsheet = document.getElementById('spreadsheet');
-        const sheet = this.activeSheet;
-        
-        if (!sheet) return;
-        
-        // Limpar planilha
         spreadsheet.innerHTML = '';
         
-        // Configurar grid com colunas e linhas corretas
-        spreadsheet.style.display = 'grid';
-        spreadsheet.style.gridTemplateColumns = `100px repeat(${sheet.cols}, ${sheet.colWidths.slice(0, sheet.cols).map(w => w + 'px').join(' ')})`;
-        spreadsheet.style.gridTemplateRows = `35px repeat(${sheet.rows.length}, 35px)`;
-        spreadsheet.style.gridAutoFlow = 'row';
+        const sheet = this.activeSheet;
         
-        // Renderizar cabeçalho das colunas
+        // Criar grid
+        spreadsheet.style.gridTemplateColumns = `100px ${sheet.colWidths.map(w => `${w}px`).join(' ')}`;
+        
+        // Cabeçalho de colunas
         const cornerCell = document.createElement('div');
         cornerCell.className = 'cell header corner';
-        cornerCell.style.gridColumn = '1';
-        cornerCell.style.gridRow = '1';
-        cornerCell.innerHTML = '';
+        cornerCell.textContent = '';
         spreadsheet.appendChild(cornerCell);
         
         for (let col = 0; col < sheet.cols; col++) {
             const headerCell = document.createElement('div');
             headerCell.className = 'cell header';
             headerCell.textContent = this.getColumnName(col);
-            headerCell.style.gridColumn = (col + 2).toString();
-            headerCell.style.gridRow = '1';
-            headerCell.style.width = sheet.colWidths[col] + 'px';
-            headerCell.style.position = 'sticky';
-            headerCell.style.top = '0';
-            headerCell.style.zIndex = '5';
-            
-            // Adicionar handle para redimensionar
-            const resizeHandle = document.createElement('div');
-            resizeHandle.className = 'resize-handle';
-            resizeHandle.addEventListener('mousedown', (e) => {
+            headerCell.dataset.col = col;
+            headerCell.addEventListener('click', () => this.selectColumn(col));
+            headerCell.addEventListener('contextmenu', (e) => {
                 e.preventDefault();
-                this.startColResize(col, e);
+                this.showContextMenu(e.clientX, e.clientY, { type: 'column', col: col });
             });
-            headerCell.appendChild(resizeHandle);
-            
             spreadsheet.appendChild(headerCell);
         }
         
-        // Renderizar linhas de dados
+        // Linhas
         for (let row = 0; row < sheet.rows.length; row++) {
-            // Número da linha (coluna fixa à esquerda)
-            const rowNumber = document.createElement('div');
-            rowNumber.className = 'cell header row-header';
-            rowNumber.textContent = row + 1;
-            rowNumber.style.gridColumn = '1';
-            rowNumber.style.gridRow = (row + 2).toString();
-            rowNumber.style.position = 'sticky';
-            rowNumber.style.left = '0';
-            rowNumber.style.zIndex = '5';
-            spreadsheet.appendChild(rowNumber);
+            // Cabeçalho de linha
+            const rowHeader = document.createElement('div');
+            rowHeader.className = 'cell header row-header';
+            rowHeader.textContent = row + 1;
+            rowHeader.dataset.row = row;
+            rowHeader.addEventListener('click', () => this.selectRow(row));
+            rowHeader.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                this.showContextMenu(e.clientX, e.clientY, { type: 'row', row: row });
+            });
+            spreadsheet.appendChild(rowHeader);
             
-            // Células de dados
+            // Células
             for (let col = 0; col < sheet.cols; col++) {
                 const cell = document.createElement('div');
                 cell.className = 'cell';
                 cell.dataset.row = row;
                 cell.dataset.col = col;
-                cell.tabIndex = 0;
-                cell.style.gridColumn = (col + 2).toString();
-                cell.style.gridRow = (row + 2).toString();
                 
                 const cellData = sheet.data[row] && sheet.data[row][col];
-                
                 if (cellData) {
-                    // Adicionar hiperlink se existir
-                    if (cellData.hyperlink) {
-                        cell.innerHTML = `<a href="${cellData.hyperlink}" target="_blank" style="color: #1a73e8; text-decoration: underline;">${cellData.value}</a>`;
-                        cell.style.cursor = 'pointer';
-                    } else {
-                        cell.textContent = cellData.value;
-                    }
+                    cell.textContent = cellData.value || '';
+                    cell.style.fontFamily = cellData.style.fontFamily;
+                    cell.style.fontSize = cellData.style.fontSize;
+                    cell.style.fontWeight = cellData.style.bold ? 'bold' : 'normal';
+                    cell.style.fontStyle = cellData.style.italic ? 'italic' : 'normal';
+                    cell.style.backgroundColor = cellData.style.backgroundColor;
+                    cell.style.color = cellData.style.color;
                     
-                    if (cellData.style) {
-                        cell.style.fontFamily = cellData.style.fontFamily;
-                        cell.style.fontSize = cellData.style.fontSize;
-                        cell.style.fontWeight = cellData.style.bold ? 'bold' : 'normal';
-                        cell.style.fontStyle = cellData.style.italic ? 'italic' : 'normal';
-                        cell.style.backgroundColor = cellData.style.backgroundColor;
-                        cell.style.color = cellData.style.color;
-                    }
-                    
-                    if (cellData.type === 'number' || cellData.type === 'currency') {
-                        cell.style.textAlign = 'right';
-                    } else {
-                        cell.style.textAlign = 'left';
+                    if (cellData.type === 'currency') {
+                        cell.classList.add('currency');
+                    } else if (cellData.type === 'number') {
+                        cell.classList.add('number');
                     }
                 }
                 
-                cell.addEventListener('mousedown', (e) => this.handleCellMouseDown(e, row, col));
-                cell.addEventListener('mouseover', (e) => this.handleCellMouseOver(e, row, col));
+                cell.addEventListener('click', (e) => this.handleCellClick(e, row, col));
                 cell.addEventListener('dblclick', (e) => this.handleCellDoubleClick(e, row, col));
-                cell.addEventListener('keydown', (e) => this.handleCellKeyDown(e, row, col));
+                cell.addEventListener('contextmenu', (e) => {
+                    e.preventDefault();
+                    this.showContextMenu(e.clientX, e.clientY, { type: 'cell', row: row, col: col });
+                });
+                cell.addEventListener('touchstart', (e) => {
+                    if (window.innerWidth <= 768) {
+                        this.handleCellTouch(row, col);
+                    }
+                }, { passive: true });
                 
                 spreadsheet.appendChild(cell);
             }
         }
-        
-        this.updateFormulaBar();
-        this.updateRowCount();
-        this.syncFormulaBar();
     }
     
-    handleCellMouseDown(e, row, col) {
-        if (e.button === 2) return; // Botão direito
-        
-        // Parar edição anterior se existir
+    handleCellClick(e, row, col) {
         if (this.isEditing) {
-            this.stopEditing();
+            this.finishEditing();
         }
         
-        // Iniciar seleção
-        this.isSelecting = true;
-        this.selectionStart = { row, col };
+        // Limpar seleção anterior
+        document.querySelectorAll('.cell.selected').forEach(cell => {
+            cell.classList.remove('selected');
+        });
         
-        // Se for Shift+click, adicionar ao intervalo
-        if (e.shiftKey) {
-            const lastCell = this.selectedCells[this.selectedCells.length - 1];
-            if (lastCell) {
-                this.selectRange(lastCell.row, lastCell.col, row, col);
-            }
-        } else if (e.ctrlKey || e.metaKey) {
-            // Ctrl+click para seleção múltipla
-            const existingIndex = this.selectedCells.findIndex(cell => cell.row === row && cell.col === col);
-            if (existingIndex >= 0) {
-                this.selectedCells.splice(existingIndex, 1);
-            } else {
-                this.selectedCells.push({ row, col });
-            }
-            this.updateSelectionVisual();
-        } else {
-            // Clique simples
-            document.querySelectorAll('.cell.selected').forEach(cell => {
-                cell.classList.remove('selected');
-            });
-            
-            e.target.classList.add('selected');
-            this.selectedCells = [{ row, col }];
-            
-            document.getElementById('cellRef').value = this.getCellRef(row, col);
-            
-            const cellData = this.activeSheet.data[row] && this.activeSheet.data[row][col];
-            const formulaInput = document.getElementById('formulaInput');
-            
-            if (cellData && cellData.formula) {
-                formulaInput.value = cellData.formula;
-            } else {
-                const cellValue = this.getCellValue(this.activeSheet, row, col);
-                formulaInput.value = cellValue;
-            }
-            
-            this.updateToolbarState(row, col);
-            this.syncFormulaBar();
+        // Selecionar célula atual
+        const cellElement = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+        if (cellElement) {
+            cellElement.classList.add('selected');
         }
-    }
-    
-    handleCellMouseOver(e, row, col) {
-        if (this.isSelecting && this.selectionStart) {
-            this.selectRange(this.selectionStart.row, this.selectionStart.col, row, col);
-        }
+        
+        this.selectedCells = [this.getCellRef(row, col)];
+        this.updateCellRef(row, col);
     }
     
     handleCellDoubleClick(e, row, col) {
         this.startEditing(row, col);
     }
     
-    handleCellKeyDown(e, row, col) {
-        // Se não está editando e o usuário digita um caractere, iniciar edição
-        if (!this.isEditing) {
-            const key = e.key;
-            
-            // Ignorar teclas de navegação e atalhos
-            if (key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
-                this.startEditing(row, col, key);
-                e.preventDefault();
-            }
+    handleCellTouch(row, col) {
+        // Melhorar seleção para touch
+        if (this.isEditing) {
+            this.finishEditing();
+        }
+        
+        // Selecionar célula
+        const cellElement = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+        if (cellElement) {
+            cellElement.classList.add('selected');
+        }
+        
+        // Mostrar opções rápidas no mobile
+        if (window.innerWidth <= 768) {
+            this.showQuickOptions(row, col);
         }
     }
     
-    startEditing(row, col, initialValue = null) {
-        // Se já está editando outra célula, parar a edição anterior
-        if (this.isEditing) {
-            this.stopEditing();
-        }
+    showQuickOptions(row, col) {
+        // Criar menu rápido para mobile
+        const existingMenu = document.querySelector('.quick-menu');
+        if (existingMenu) existingMenu.remove();
+        
+        const quickMenu = document.createElement('div');
+        quickMenu.className = 'quick-menu';
+        quickMenu.style.cssText = `
+            position: fixed;
+            bottom: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: white;
+            border-radius: 8px;
+            padding: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            display: flex;
+            gap: 5px;
+            z-index: 1000;
+        `;
+        
+        const buttons = [
+            { icon: '✏️', action: () => this.startEditing(row, col) },
+            { icon: '📋', action: () => this.copyCell(row, col) },
+            { icon: '📝', action: () => this.pasteCell(row, col) },
+            { icon: '🗑️', action: () => this.clearCell(row, col) },
+            { icon: '❌', action: () => quickMenu.remove() }
+        ];
+        
+        buttons.forEach(btn => {
+            const button = document.createElement('button');
+            button.innerHTML = btn.icon;
+            button.style.cssText = `
+                width: 40px;
+                height: 40px;
+                border: 1px solid #ccc;
+                border-radius: 50%;
+                background: white;
+                cursor: pointer;
+                font-size: 18px;
+            `;
+            button.addEventListener('click', () => {
+                btn.action();
+                quickMenu.remove();
+            });
+            quickMenu.appendChild(button);
+        });
+        
+        document.body.appendChild(quickMenu);
+        
+        // Fechar ao tocar fora
+        setTimeout(() => {
+            document.addEventListener('click', function handler(e) {
+                if (!quickMenu.contains(e.target)) {
+                    quickMenu.remove();
+                    document.removeEventListener('click', handler);
+                }
+            });
+        }, 100);
+    }
+    
+    updateCellRef(row, col) {
+        document.getElementById('cellRef').value = this.getCellRef(row, col);
+        const cellData = this.activeSheet.data[row] && this.activeSheet.data[row][col];
+        document.getElementById('formulaInput').value = cellData ? (cellData.formula || cellData.value || '') : '';
+    }
+    
+    startEditing(row, col) {
+        const cellElement = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+        if (!cellElement) return;
         
         this.isEditing = true;
         this.currentEditingCell = { row, col };
         
-        const cell = document.querySelector(`.cell[data-row="${row}"][data-col="${col}"]`);
-        const cellData = this.activeSheet.data[row] && this.activeSheet.data[row][col];
-        const currentValue = cellData && cellData.formula ? cellData.formula : this.getCellValue(this.activeSheet, row, col);
+        cellElement.classList.add('editing');
+        cellElement.innerHTML = '';
         
-        // Marcar célula como editando
-        cell.classList.add('editing');
-        
-        // Criar input dentro da célula
         const input = document.createElement('input');
-        input.value = initialValue || currentValue;
+        const cellData = this.activeSheet.data[row] && this.activeSheet.data[row][col];
+        input.value = cellData ? (cellData.formula || cellData.value || '') : '';
         input.type = 'text';
-        input.placeholder = '';
-        input.style.width = '100%';
-        input.style.height = '100%';
-        input.style.border = 'none';
-        input.style.outline = 'none';
-        input.style.background = 'transparent';
-        input.style.fontFamily = 'inherit';
-        input.style.fontSize = 'inherit';
-        input.style.color = 'inherit';
-        input.style.textAlign = 'inherit';
         
-        // Eventos do input
+        // No mobile, manter o teclado aberto
+        if (window.innerWidth <= 768) {
+            input.style.fontSize = '16px'; // Prevenir zoom no iOS
+            input.style.height = '100%';
+        }
+        
+        input.addEventListener('blur', () => {
+            this.finishEditing(input.value);
+        });
+        
         input.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 e.preventDefault();
-                this.stopEditing(true);
-                this.moveSelection(row + 1, col);
+                this.finishEditing(input.value);
             } else if (e.key === 'Escape') {
-                e.preventDefault();
-                this.stopEditing(false);
+                this.finishEditing(null);
             } else if (e.key === 'Tab') {
                 e.preventDefault();
-                this.stopEditing(true);
-                this.moveSelection(row, col + 1);
+                this.finishEditing(input.value);
+                this.startEditing(row, col + 1);
             }
         });
         
-        input.addEventListener('input', (e) => {
-            // Atualizar a caixa de edição (formula bar) em tempo real
-            document.getElementById('formulaInput').value = e.target.value;
-        });
-        
-        input.addEventListener('blur', () => {
-            this.stopEditing(true);
-        });
-        
-        // Limpar célula e adicionar input
-        cell.innerHTML = '';
-        cell.appendChild(input);
-        
-        // Focar e selecionar texto
+        // No mobile, focar imediatamente
+        cellElement.appendChild(input);
         input.focus();
-        
-        if (initialValue) {
-            // Se veio de digitação, colocar cursor no final
-            input.setSelectionRange(input.value.length, input.value.length);
+        if (window.innerWidth <= 768) {
+            setTimeout(() => input.select(), 100);
         } else {
-            // Selecionar todo o texto
             input.select();
         }
-        
-        // Atualizar caixa de edição
-        document.getElementById('formulaInput').value = initialValue || currentValue;
     }
     
-    stopEditing(save = true) {
-        if (!this.isEditing) return;
+    finishEditing(value = null) {
+        if (!this.currentEditingCell) return;
         
-        const input = document.querySelector('.cell.editing input');
-        if (input && save) {
-            const value = input.value;
-            const { row, col } = this.currentEditingCell;
-            
-            // Se o valor for diferente do original, salvar
-            const originalValue = this.getCellValue(this.activeSheet, row, col);
-            if (value !== originalValue) {
-                this.saveState();
-                this.setCellValue(this.activeSheet, row, col, value);
-                this.recalculateFormulas();
-            }
-            
-            this.render();
-            document.getElementById('formulaInput').value = value;
-            document.getElementById('cellRef').value = this.getCellRef(row, col);
+        const { row, col } = this.currentEditingCell;
+        const cellElement = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+        
+        if (value !== null) {
+            this.setCellValue(this.activeSheet, row, col, value);
         }
         
         this.isEditing = false;
         this.currentEditingCell = null;
-    }
-    
-    recalculateFormulas() {
-        const sheet = this.activeSheet;
-        for (let row = 0; row < sheet.rows.length; row++) {
-            for (let col = 0; col < sheet.cols; col++) {
-                const cellData = sheet.data[row] && sheet.data[row][col];
-                if (cellData && cellData.formula) {
-                    cellData.value = this.processFormula(sheet, row, col, cellData.formula);
-                }
-            }
+        
+        if (cellElement) {
+            cellElement.classList.remove('editing');
         }
-    }
-    
-    updateFormulaBar() {
-        const formulaInput = document.getElementById('formulaInput');
-        
-        const newFormulaInput = formulaInput.cloneNode(true);
-        formulaInput.parentNode.replaceChild(newFormulaInput, formulaInput);
-        
-        newFormulaInput.addEventListener('change', (e) => {
-            const value = e.target.value;
-            const { row, col } = this.currentEditingCell || this.selectedCells[0] || { row: 0, col: 0 };
-            
-            if (row !== undefined && col !== undefined) {
-                this.saveState();
-                this.setCellValue(this.activeSheet, row, col, value);
-                this.recalculateFormulas();
-                this.render();
-                document.getElementById('cellRef').value = this.getCellRef(row, col);
-            }
-        });
-        
-        newFormulaInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                const value = e.target.value;
-                const { row, col } = this.currentEditingCell || this.selectedCells[0] || { row: 0, col: 0 };
-                
-                if (row !== undefined && col !== undefined) {
-                    this.saveState();
-                    this.setCellValue(this.activeSheet, row, col, value);
-                    this.recalculateFormulas();
-                    this.render();
-                    
-                    const nextRow = row + 1;
-                    if (nextRow < this.activeSheet.rows.length) {
-                        this.moveSelection(nextRow, col);
-                    }
-                }
-            }
-        });
-        
-        this.syncFormulaBar();
-    }
-    
-    syncFormulaBar() {
-        const formulaInput = document.getElementById('formulaInput');
-        const cellRef = document.getElementById('cellRef');
-        
-        if (this.selectedCells.length > 0) {
-            const { row, col } = this.selectedCells[0];
-            const cellData = this.activeSheet.data[row] && this.activeSheet.data[row][col];
-            
-            cellRef.value = this.getCellRef(row, col);
-            
-            if (cellData && cellData.formula) {
-                formulaInput.value = cellData.formula;
-            } else {
-                const cellValue = this.getCellValue(this.activeSheet, row, col);
-                formulaInput.value = cellValue;
-            }
-        } else {
-            cellRef.value = '';
-            formulaInput.value = '';
-        }
-    }
-    
-    updateToolbarState(row, col) {
-        const sheet = this.activeSheet;
-        const cellData = sheet.data[row] && sheet.data[row][col];
-        
-        if (cellData && cellData.style) {
-            document.getElementById('boldBtn').classList.toggle('active', cellData.style.bold);
-            document.getElementById('italicBtn').classList.toggle('active', cellData.style.italic);
-            document.getElementById('fontFamily').value = cellData.style.fontFamily;
-            document.getElementById('fontSize').value = cellData.style.fontSize.replace('px', '');
-            document.getElementById('bgColor').value = cellData.style.backgroundColor;
-            document.getElementById('textColor').value = cellData.style.color;
-        }
-    }
-    
-    updateSheetTabs() {
-        const sheetsContainer = document.getElementById('sheets');
-        const addBtn = document.getElementById('addSheetBtn');
-        sheetsContainer.innerHTML = '';
-        sheetsContainer.appendChild(addBtn);
-        
-        this.sheets.forEach((sheet) => {
-            const tab = document.createElement('div');
-            tab.className = `sheet-tab ${sheet.id === this.activeSheet.id ? 'active' : ''}`;
-            tab.dataset.sheetId = sheet.id;
-            
-            const tabName = document.createElement('input');
-            tabName.value = sheet.name;
-            tabName.addEventListener('change', (e) => {
-                sheet.name = e.target.value;
-            });
-            
-            tab.appendChild(tabName);
-            tab.addEventListener('click', () => {
-                this.activeSheet = sheet;
-                this.render();
-                this.updateSheetTabs();
-            });
-            
-            sheetsContainer.appendChild(tab);
-        });
-    }
-    
-    setupToolbar() {
-        document.getElementById('fontFamily').addEventListener('change', (e) => {
-            this.applyStyleToSelected({ fontFamily: e.target.value });
-        });
-        
-        document.getElementById('fontSize').addEventListener('change', (e) => {
-            this.applyStyleToSelected({ fontSize: e.target.value + 'px' });
-        });
-        
-        document.getElementById('boldBtn').addEventListener('click', () => {
-            const cellData = this.getSelectedCellData();
-            this.saveState();
-            this.applyStyleToSelected({ bold: !cellData.style.bold });
-        });
-        
-        document.getElementById('italicBtn').addEventListener('click', () => {
-            const cellData = this.getSelectedCellData();
-            this.saveState();
-            this.applyStyleToSelected({ italic: !cellData.style.italic });
-        });
-        
-        document.getElementById('bgColor').addEventListener('change', (e) => {
-            this.saveState();
-            this.applyStyleToSelected({ backgroundColor: e.target.value });
-        });
-        
-        document.getElementById('textColor').addEventListener('change', (e) => {
-            this.saveState();
-            this.applyStyleToSelected({ color: e.target.value });
-        });
-        
-        document.getElementById('cellType').addEventListener('change', (e) => {
-            this.saveState();
-            this.applyTypeToSelected(e.target.value);
-        });
-        
-        document.getElementById('insertRowBtn').addEventListener('click', () => {
-            this.saveState();
-            this.insertRow();
-        });
-        
-        document.getElementById('deleteRowBtn').addEventListener('click', () => {
-            this.saveState();
-            this.deleteRow();
-        });
-        
-        document.getElementById('insertColBtn').addEventListener('click', () => {
-            this.saveState();
-            this.insertColumn();
-        });
-        
-        document.getElementById('deleteColBtn').addEventListener('click', () => {
-            this.saveState();
-            this.deleteColumn();
-        });
-        
-        document.getElementById('addSheetBtn').addEventListener('click', () => {
-            const newName = `Planilha${this.sheets.length + 1}`;
-            this.createSheet(newName);
-        });
-        
-        // Adicionar botões de busca e mesclar
-        const toolbar = document.querySelector('.toolbar');
-        const searchGroup = document.createElement('div');
-        searchGroup.className = 'toolbar-group';
-        searchGroup.innerHTML = `
-            <input type="text" id="searchInput" placeholder="🔍 Buscar..." style="width: 150px;">
-            <button class="toolbar-btn" id="searchBtn" title="Buscar">🔍</button>
-        `;
-        
-        const mergeGroup = document.createElement('div');
-        mergeGroup.className = 'toolbar-group';
-        mergeGroup.innerHTML = `
-            <button class="toolbar-btn" id="mergeBtn" title="Mesclar células">🔗</button>
-            <button class="toolbar-btn" id="hyperlinkBtn" title="Adicionar hiperlink">🔗</button>
-        `;
-        
-        toolbar.appendChild(searchGroup);
-        toolbar.appendChild(mergeGroup);
-        
-        document.getElementById('searchBtn').addEventListener('click', () => {
-            this.searchInSheet();
-        });
-        
-        document.getElementById('searchInput').addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                this.searchInSheet();
-            }
-        });
-        
-        document.getElementById('mergeBtn').addEventListener('click', () => {
-            this.mergeCells();
-        });
-        
-        document.getElementById('hyperlinkBtn').addEventListener('click', () => {
-            this.addHyperlink();
-        });
-    }
-    
-    searchInSheet() {
-        const searchTerm = document.getElementById('searchInput').value.trim();
-        if (!searchTerm) return;
-        
-        const sheet = this.activeSheet;
-        let found = false;
-        
-        for (let row = 0; row < sheet.rows.length; row++) {
-            for (let col = 0; col < sheet.cols; col++) {
-                const cellData = sheet.data[row] && sheet.data[row][col];
-                if (cellData && cellData.value && String(cellData.value).toLowerCase().includes(searchTerm.toLowerCase())) {
-                    this.selectRange(row, col, row, col);
-                    const cell = document.querySelector(`.cell[data-row="${row}"][data-col="${col}"]`);
-                    if (cell) {
-                        cell.classList.add('found');
-                        setTimeout(() => cell.classList.remove('found'), 2000);
-                        cell.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    }
-                    found = true;
-                    break;
-                }
-            }
-            if (found) break;
-        }
-        
-        if (!found) {
-            alert(`🔍 "${searchTerm}" não encontrado na planilha.`);
-        }
-    }
-    
-    mergeCells() {
-        if (this.selectedCells.length < 2) {
-            alert('Selecione pelo menos 2 células para mesclar!');
-            return;
-        }
-        
-        const sheet = this.activeSheet;
-        const minRow = Math.min(...this.selectedCells.map(c => c.row));
-        const maxRow = Math.max(...this.selectedCells.map(c => c.row));
-        const minCol = Math.min(...this.selectedCells.map(c => c.col));
-        const maxCol = Math.max(...this.selectedCells.map(c => c.col));
-        
-        // Obter valor da célula superior esquerda
-        const value = this.getCellValue(sheet, minRow, minCol);
-        
-        // Limpar células mescladas
-        for (let r = minRow; r <= maxRow; r++) {
-            for (let c = minCol; c <= maxCol; c++) {
-                if (!(r === minRow && c === minCol)) {
-                    if (sheet.data[r] && sheet.data[r][c]) {
-                        sheet.data[r][c].value = '';
-                        sheet.data[r][c].merged = true;
-                    }
-                }
-            }
-        }
-        
-        // Marcar célula principal como mesclada
-        if (!sheet.data[minRow]) sheet.data[minRow] = {};
-        if (!sheet.data[minRow][minCol]) {
-            sheet.data[minRow][minCol] = {
-                value: '',
-                type: 'text',
-                formula: null,
-                hyperlink: null,
-                style: {
-                    fontFamily: 'Arial',
-                    fontSize: '12px',
-                    bold: false,
-                    italic: false,
-                    backgroundColor: '#ffffff',
-                    color: '#000000'
-                }
-            };
-        }
-        
-        sheet.data[minRow][minCol].value = value;
-        sheet.data[minRow][minCol].merged = true;
         
         this.render();
+        this.updateCellRef(row, col);
     }
     
-    addHyperlink() {
-        if (this.selectedCells.length === 0) {
-            alert('Selecione uma célula para adicionar hiperlink!');
-            return;
+    setupMobile() {
+        const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+        const toolbarContent = document.getElementById('toolbarContent');
+        
+        // Adicionar botão de menu mobile se não existir
+        if (!mobileMenuBtn) {
+            const toolbar = document.querySelector('.toolbar');
+            const btn = document.createElement('button');
+            btn.className = 'mobile-menu-btn';
+            btn.id = 'mobileMenuBtn';
+            btn.innerHTML = '☰';
+            btn.title = 'Menu';
+            toolbar.insertBefore(btn, toolbar.firstChild);
         }
         
-        const { row, col } = this.selectedCells[0];
-        const url = prompt('Digite a URL do hiperlink (ex: https://www.google.com):');
+        // Evento de clique para mostrar/ocultar menu
+        document.getElementById('mobileMenuBtn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            toolbarContent.classList.toggle('show');
+        });
         
-        if (url) {
-            const sheet = this.activeSheet;
-            if (!sheet.data[row]) sheet.data[row] = {};
-            if (!sheet.data[row][col]) {
-                sheet.data[row][col] = {
-                    value: '',
-                    type: 'text',
-                    formula: null,
-                    hyperlink: null,
-                    style: {
-                        fontFamily: 'Arial',
-                        fontSize: '12px',
-                        bold: false,
-                        italic: false,
-                        backgroundColor: '#ffffff',
-                        color: '#000000'
-                    }
-                };
+        // Fechar menu ao clicar fora
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.toolbar') && toolbarContent.classList.contains('show')) {
+                toolbarContent.classList.remove('show');
             }
-            
-            sheet.data[row][col].hyperlink = url;
-            if (!sheet.data[row][col].value) {
-                sheet.data[row][col].value = url;
+        });
+        
+        // Fechar menu ao selecionar opção
+        document.querySelectorAll('.toolbar-content select, .toolbar-content button, .toolbar-content input').forEach(el => {
+            el.addEventListener('click', () => {
+                if (window.innerWidth <= 768) {
+                    setTimeout(() => toolbarContent.classList.remove('show'), 200);
+                }
+            });
+        });
+    }
+    
+    setupTouchEvents() {
+        // Suporte a gestos de pinça para zoom
+        let initialScale = 1;
+        let startDistance = 0;
+        
+        const spreadsheetContainer = document.querySelector('.spreadsheet-container');
+        
+        spreadsheetContainer.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 2) {
+                const touch1 = e.touches[0];
+                const touch2 = e.touches[1];
+                startDistance = Math.hypot(
+                    touch1.clientX - touch2.clientX,
+                    touch1.clientY - touch2.clientY
+                );
             }
-            
+        }, { passive: true });
+        
+        spreadsheetContainer.addEventListener('touchmove', (e) => {
+            if (e.touches.length === 2) {
+                e.preventDefault();
+                const touch1 = e.touches[0];
+                const touch2 = e.touches[1];
+                const currentDistance = Math.hypot(
+                    touch1.clientX - touch2.clientX,
+                    touch1.clientY - touch2.clientY
+                );
+                
+                if (startDistance > 0) {
+                    const scale = currentDistance / startDistance;
+                    const cells = document.querySelectorAll('.cell');
+                    cells.forEach(cell => {
+                        const currentFontSize = parseFloat(cell.style.fontSize) || 14;
+                        cell.style.fontSize = Math.min(Math.max(currentFontSize * scale, 10), 24) + 'px';
+                    });
+                }
+            }
+        }, { passive: false });
+    }
+    
+    setupResizeObserver() {
+        // Observar mudanças no tamanho da tela
+        window.addEventListener('resize', () => {
+            this.handleResize();
+        });
+    }
+    
+    handleResize() {
+        const isMobile = window.innerWidth <= 768;
+        
+        // Ajustar quantidade de colunas visíveis
+        const spreadsheet = document.getElementById('spreadsheet');
+        const container = document.querySelector('.spreadsheet-container');
+        
+        if (isMobile) {
+            // Otimização para mobile: reduzir número de linhas renderizadas
+            const maxVisibleRows = Math.floor(container.clientHeight / 40);
+            // Implementar virtualização básica se necessário
+        }
+        
+        // Re-renderizar se necessário
+        if (this.activeSheet) {
             this.render();
         }
     }
     
-    setupContextMenu() {
-        const spreadsheet = document.getElementById('spreadsheet');
-        
-        spreadsheet.addEventListener('contextmenu', (e) => {
-            e.preventDefault();
-            
-            const target = e.target;
-            if (target.classList.contains('cell') && !target.classList.contains('header')) {
-                const row = parseInt(target.dataset.row);
-                const col = parseInt(target.dataset.col);
-                
-                // Selecionar célula
-                this.selectedCells = [{ row, col }];
-                this.updateSelectionVisual();
-                
-                // Criar menu de contexto
-                const menu = document.createElement('div');
-                menu.className = 'context-menu';
-                menu.style.left = e.clientX + 'px';
-                menu.style.top = e.clientY + 'px';
-                
-                menu.innerHTML = `
-                    <div class="context-menu-item" data-action="copy">📋 Copiar</div>
-                    <div class="context-menu-item" data-action="paste">📥 Colar</div>
-                    <div class="context-menu-separator"></div>
-                    <div class="context-menu-item" data-action="insertRow">➕ Inserir linha</div>
-                    <div class="context-menu-item" data-action="insertCol">➕ Inserir coluna</div>
-                    <div class="context-menu-separator"></div>
-                    <div class="context-menu-item" data-action="hyperlink">🔗 Adicionar hiperlink</div>
-                    <div class="context-menu-item" data-action="clear">🗑️ Limpar célula</div>
-                    <div class="context-menu-separator"></div>
-                    <div class="context-menu-item" data-action="undo">🔄 Desfazer</div>
-                    <div class="context-menu-item" data-action="redo">↩️ Refazer</div>
-                `;
-                
-                document.body.appendChild(menu);
-                
-                // Adicionar eventos
-                menu.querySelectorAll('.context-menu-item').forEach(item => {
-                    item.addEventListener('click', (e) => {
-                        const action = e.target.dataset.action;
-                        this.handleContextAction(action);
-                        menu.remove();
-                    });
-                });
-                
-                // Fechar menu ao clicar fora
-                document.addEventListener('click', function closeMenu(e) {
-                    if (!menu.contains(e.target)) {
-                        menu.remove();
-                        document.removeEventListener('click', closeMenu);
-                    }
-                });
-            }
-        });
+    updateRowCount() {
+        const rowCount = this.activeSheet.rows.length;
+        // Implementar atualização do contador de linhas
+        console.log(`Total de linhas: ${rowCount}`);
     }
     
-    handleContextAction(action) {
-        switch(action) {
-            case 'copy':
-                this.copySelection();
-                break;
-            case 'paste':
-                this.pasteSelection();
-                break;
-            case 'insertRow':
-                this.insertRow();
-                break;
-            case 'insertCol':
-                this.insertColumn();
-                break;
-            case 'hyperlink':
-                this.addHyperlink();
-                break;
-            case 'clear':
-                this.clearSelection();
-                break;
-            case 'undo':
-                this.undo();
-                break;
-            case 'redo':
-                this.redo();
-                break;
-        }
-    }
-    
-    clearSelection() {
-        this.saveState();
-        const sheet = this.activeSheet;
-        this.selectedCells.forEach(({ row, col }) => {
-            if (sheet.data[row] && sheet.data[row][col]) {
-                sheet.data[row][col].value = '';
-                sheet.data[row][col].formula = null;
-                sheet.data[row][col].hyperlink = null;
-            }
-        });
-        this.render();
-    }
-    
-    copySelection() {
-        if (this.selectedCells.length === 0) return;
-        
-        // Determinar dimensões da seleção
-        const rows = [...new Set(this.selectedCells.map(c => c.row))];
-        const cols = [...new Set(this.selectedCells.map(c => c.col))];
-        
-        const minRow = Math.min(...rows);
-        const maxRow = Math.max(...rows);
-        const minCol = Math.min(...cols);
-        const maxCol = Math.max(...cols);
-        
-        this.clipboard = [];
-        
-        for (let r = minRow; r <= maxRow; r++) {
-            const rowData = [];
-            for (let c = minCol; c <= maxCol; c++) {
-                const cellData = this.activeSheet.data[r] && this.activeSheet.data[r][c];
-                rowData.push(cellData ? { ...cellData } : null);
-            }
-            this.clipboard.push(rowData);
-        }
-        
-        // Feedback visual
-        const cell = document.querySelector(`.cell[data-row="${this.selectedCells[0].row}"][data-col="${this.selectedCells[0].col}"]`);
-        if (cell) {
-            cell.style.outline = '2px dashed #1a73e8';
-            setTimeout(() => {
-                cell.style.outline = '';
-            }, 500);
-        }
-    }
-    
-    pasteSelection() {
-        if (this.clipboard.length === 0) {
-            alert('Área de transferência vazia! Copie células primeiro.');
-            return;
-        }
-        
-        this.saveState();
-        
-        const { row, col } = this.selectedCells[0] || { row: 0, col: 0 };
-        const sheet = this.activeSheet;
-        
-        this.clipboard.forEach((rowData, rIndex) => {
-            rowData.forEach((cellData, cIndex) => {
-                const targetRow = row + rIndex;
-                const targetCol = col + cIndex;
-                
-                if (cellData) {
-                    if (!sheet.data[targetRow]) sheet.data[targetRow] = {};
-                    sheet.data[targetRow][targetCol] = { ...cellData };
-                }
-            });
+    setupToolbar() {
+        document.getElementById('boldBtn').addEventListener('click', () => {
+            this.toggleBold();
         });
         
-        this.render();
-    }
-    
-    saveState() {
-        // Salvar estado para desfazer
-        const state = JSON.stringify({
-            sheets: this.sheets.map(sheet => ({
-                id: sheet.id,
-                name: sheet.name,
-                rows: [...sheet.rows],
-                cols: sheet.cols,
-                data: JSON.parse(JSON.stringify(sheet.data)),
-                colWidths: [...sheet.colWidths]
-            })),
-            activeSheetId: this.activeSheet ? this.activeSheet.id : null
+        document.getElementById('italicBtn').addEventListener('click', () => {
+            this.toggleItalic();
         });
         
-        this.undoStack.push(state);
-        if (this.undoStack.length > 50) {
-            this.undoStack.shift();
-        }
-        this.redoStack = [];
-    }
-    
-    undo() {
-        if (this.undoStack.length === 0) {
-            alert('Nada para desfazer!');
-            return;
-        }
-        
-        const currentState = JSON.stringify({
-            sheets: this.sheets.map(sheet => ({
-                id: sheet.id,
-                name: sheet.name,
-                rows: [...sheet.rows],
-                cols: sheet.cols,
-                data: JSON.parse(JSON.stringify(sheet.data)),
-                colWidths: [...sheet.colWidths]
-            })),
-            activeSheetId: this.activeSheet ? this.activeSheet.id : null
+        document.getElementById('fontFamily').addEventListener('change', (e) => {
+            this.setFontFamily(e.target.value);
         });
         
-        this.redoStack.push(currentState);
-        
-        const previousState = JSON.parse(this.undoStack.pop());
-        this.restoreState(previousState);
-    }
-    
-    redo() {
-        if (this.redoStack.length === 0) {
-            alert('Nada para refazer!');
-            return;
-        }
-        
-        const currentState = JSON.stringify({
-            sheets: this.sheets.map(sheet => ({
-                id: sheet.id,
-                name: sheet.name,
-                rows: [...sheet.rows],
-                cols: sheet.cols,
-                data: JSON.parse(JSON.stringify(sheet.data)),
-                colWidths: [...sheet.colWidths]
-            })),
-            activeSheetId: this.activeSheet ? this.activeSheet.id : null
+        document.getElementById('fontSize').addEventListener('change', (e) => {
+            this.setFontSize(e.target.value);
         });
         
-        this.undoStack.push(currentState);
+        document.getElementById('bgColor').addEventListener('input', (e) => {
+            this.setBackgroundColor(e.target.value);
+        });
         
-        const nextState = JSON.parse(this.redoStack.pop());
-        this.restoreState(nextState);
-    }
-    
-    restoreState(state) {
-        this.sheets = state.sheets.map(sheet => ({
-            ...sheet,
-            data: sheet.data
-        }));
+        document.getElementById('textColor').addEventListener('input', (e) => {
+            this.setTextColor(e.target.value);
+        });
         
-        this.activeSheet = this.sheets.find(sheet => sheet.id === state.activeSheetId) || this.sheets[0];
+        document.getElementById('cellType').addEventListener('change', (e) => {
+            this.setCellType(e.target.value);
+        });
         
-        this.render();
-        this.updateSheetTabs();
-        this.updateRowCount();
+        document.getElementById('insertRowBtn').addEventListener('click', () => {
+            this.insertRow();
+        });
+        
+        document.getElementById('deleteRowBtn').addEventListener('click', () => {
+            this.deleteRow();
+        });
+        
+        document.getElementById('insertColBtn').addEventListener('click', () => {
+            this.insertCol();
+        });
+        
+        document.getElementById('deleteColBtn').addEventListener('click', () => {
+            this.deleteCol();
+        });
+        
+        document.getElementById('addSheetBtn').addEventListener('click', () => {
+            this.createSheet(`Planilha${this.sheets.length + 1}`);
+        });
     }
     
     setupExport() {
@@ -1512,407 +1072,492 @@ class Spreadsheet {
         });
     }
     
-    exportToExcel() {
-        try {
-            const wb = XLSX.utils.book_new();
-            
-            this.sheets.forEach((sheet) => {
-                let minRow = Infinity;
-                let maxRow = -1;
-                let minCol = Infinity;
-                let maxCol = -1;
-                
-                for (let row = 0; row < sheet.rows.length; row++) {
-                    for (let col = 0; col < sheet.cols; col++) {
-                        const cellData = sheet.data[row] && sheet.data[row][col];
-                        if (cellData && cellData.value !== '') {
-                            minRow = Math.min(minRow, row);
-                            maxRow = Math.max(maxRow, row);
-                            minCol = Math.min(minCol, col);
-                            maxCol = Math.max(maxCol, col);
-                        }
-                    }
-                }
-                
-                if (maxRow === -1) {
-                    return;
-                }
-                
-                const data = [];
-                
-                for (let row = minRow; row <= maxRow; row++) {
-                    const rowData = [];
-                    for (let col = minCol; col <= maxCol; col++) {
-                        const cellData = sheet.data[row] && sheet.data[row][col];
-                        if (cellData && cellData.value !== '') {
-                            rowData.push(cellData.value);
-                        } else {
-                            rowData.push('');
-                        }
-                    }
-                    data.push(rowData);
-                }
-                
-                const ws = XLSX.utils.aoa_to_sheet(data);
-                
-                const colWidths = [];
-                for (let col = 0; col < (maxCol - minCol + 1); col++) {
-                    let maxLength = 0;
-                    for (let row = 0; row < data.length; row++) {
-                        if (data[row][col]) {
-                            maxLength = Math.max(maxLength, String(data[row][col]).length);
-                        }
-                    }
-                    colWidths.push({ wch: Math.min(maxLength + 2, 50) });
-                }
-                ws['!cols'] = colWidths;
-                
-                XLSX.utils.book_append_sheet(wb, ws, sheet.name);
-            });
-            
-            if (wb.SheetNames.length === 0) {
-                alert('❌ Nenhuma célula preenchida encontrada para exportar!');
-                return;
+    setupContextMenu() {
+        document.addEventListener('contextmenu', (e) => {
+            if (e.target.classList.contains('cell') && !e.target.classList.contains('header')) {
+                e.preventDefault();
+                const row = parseInt(e.target.dataset.row);
+                const col = parseInt(e.target.dataset.col);
+                this.showContextMenu(e.clientX, e.clientY, { type: 'cell', row: row, col: col });
             }
-            
-            const fileName = `planilha_${new Date().toISOString().split('T')[0]}.xlsx`;
-            XLSX.writeFile(wb, fileName);
-            
-            let totalCells = 0;
-            this.sheets.forEach(sheet => {
-                for (let row = 0; row < sheet.rows.length; row++) {
-                    for (let col = 0; col < sheet.cols; col++) {
-                        const cellData = sheet.data[row] && sheet.data[row][col];
-                        if (cellData && cellData.value !== '') {
-                            totalCells++;
-                        }
-                    }
-                }
-            });
-            
-            alert(`✅ Planilha exportada com sucesso!\n\nNome do arquivo: ${fileName}\nAbas exportadas: ${wb.SheetNames.length}\nCélulas preenchidas: ${totalCells}`);
-            
-        } catch (error) {
-            console.error('Erro ao exportar:', error);
-            alert('❌ Erro ao exportar planilha: ' + error.message);
-        }
-    }
-    
-    updateRowCount() {
-        const existingCounter = document.querySelector('.row-count');
-        if (existingCounter) {
-            existingCounter.remove();
-        }
-        
-        const counter = document.createElement('div');
-        counter.className = 'row-count';
-        const totalRows = this.activeSheet ? this.activeSheet.rows.length : 0;
-        const totalCols = this.activeSheet ? this.activeSheet.cols : 0;
-        counter.textContent = `${totalRows} linhas × ${totalCols} colunas`;
-        
-        document.body.appendChild(counter);
-    }
-    
-    getSelectedCellData() {
-        const { row, col } = this.selectedCells[0] || { row: 0, col: 0 };
-        const sheet = this.activeSheet;
-        
-        if (!sheet.data[row]) {
-            sheet.data[row] = {};
-        }
-        if (!sheet.data[row][col]) {
-            sheet.data[row][col] = {
-                value: '',
-                type: 'text',
-                formula: null,
-                hyperlink: null,
-                style: {
-                    fontFamily: 'Arial',
-                    fontSize: '12px',
-                    bold: false,
-                    italic: false,
-                    backgroundColor: '#ffffff',
-                    color: '#000000'
-                }
-            };
-        }
-        
-        return sheet.data[row][col];
-    }
-    
-    applyStyleToSelected(style) {
-        this.selectedCells.forEach(({ row, col }) => {
-            this.setCellStyle(this.activeSheet, row, col, style);
         });
         
+        document.addEventListener('click', () => {
+            const contextMenu = document.querySelector('.context-menu');
+            if (contextMenu) {
+                contextMenu.remove();
+            }
+        });
+    }
+    
+    showContextMenu(x, y, target) {
+        const menu = document.createElement('div');
+        menu.className = 'context-menu';
+        menu.style.left = x + 'px';
+        menu.style.top = y + 'px';
+        
+        let items = [];
+        
+        if (target.type === 'cell') {
+            items = [
+                { label: 'Copiar', action: () => this.copyCell(target.row, target.col) },
+                { label: 'Colar', action: () => this.pasteCell(target.row, target.col) },
+                { label: 'Cortar', action: () => this.cutCell(target.row, target.col) },
+                { label: '---' },
+                { label: 'Inserir linha acima', action: () => this.insertRowAbove(target.row) },
+                { label: 'Inserir linha abaixo', action: () => this.insertRowBelow(target.row) },
+                { label: 'Excluir linha', action: () => this.deleteRow(target.row) },
+                { label: '---' },
+                { label: 'Limpar conteúdo', action: () => this.clearCell(target.row, target.col) },
+                { label: 'Formatar célula', action: () => this.formatCell(target.row, target.col) }
+            ];
+        } else if (target.type === 'row') {
+            items = [
+                { label: 'Inserir linha acima', action: () => this.insertRowAbove(target.row) },
+                { label: 'Inserir linha abaixo', action: () => this.insertRowBelow(target.row) },
+                { label: 'Excluir linha', action: () => this.deleteRow(target.row) }
+            ];
+        } else if (target.type === 'column') {
+            items = [
+                { label: 'Inserir coluna à esquerda', action: () => this.insertColLeft(target.col) },
+                { label: 'Inserir coluna à direita', action: () => this.insertColRight(target.col) },
+                { label: 'Excluir coluna', action: () => this.deleteCol(target.col) }
+            ];
+        }
+        
+        items.forEach(item => {
+            if (item.label === '---') {
+                const separator = document.createElement('div');
+                separator.className = 'context-menu-separator';
+                menu.appendChild(separator);
+            } else {
+                const menuItem = document.createElement('div');
+                menuItem.className = 'context-menu-item';
+                menuItem.textContent = item.label;
+                menuItem.addEventListener('click', () => {
+                    item.action();
+                    menu.remove();
+                });
+                menu.appendChild(menuItem);
+            }
+        });
+        
+        document.body.appendChild(menu);
+    }
+    
+    // Métodos de formatação
+    toggleBold() {
+        const sheet = this.activeSheet;
+        this.selectedCells.forEach(cellRef => {
+            const { row, col } = this.parseCellRef(cellRef);
+            if (!sheet.data[row]) sheet.data[row] = {};
+            if (!sheet.data[row][col]) sheet.data[row][col] = { style: {} };
+            
+            sheet.data[row][col].style.bold = !sheet.data[row][col].style.bold;
+        });
         this.render();
     }
     
-    applyTypeToSelected(type) {
-        this.selectedCells.forEach(({ row, col }) => {
-            const sheet = this.activeSheet;
-            if (!sheet.data[row]) {
-                sheet.data[row] = {};
-            }
-            if (!sheet.data[row][col]) {
-                sheet.data[row][col] = {
-                    value: '',
-                    type: type,
-                    formula: null,
-                    hyperlink: null,
-                    style: {
-                        fontFamily: 'Arial',
-                        fontSize: '12px',
-                        bold: false,
-                        italic: false,
-                        backgroundColor: '#ffffff',
-                        color: '#000000'
-                    }
-                };
-            }
+    toggleItalic() {
+        const sheet = this.activeSheet;
+        this.selectedCells.forEach(cellRef => {
+            const { row, col } = this.parseCellRef(cellRef);
+            if (!sheet.data[row]) sheet.data[row] = {};
+            if (!sheet.data[row][col]) sheet.data[row][col] = { style: {} };
+            
+            sheet.data[row][col].style.italic = !sheet.data[row][col].style.italic;
+        });
+        this.render();
+    }
+    
+    setFontFamily(fontFamily) {
+        const sheet = this.activeSheet;
+        this.selectedCells.forEach(cellRef => {
+            const { row, col } = this.parseCellRef(cellRef);
+            if (!sheet.data[row]) sheet.data[row] = {};
+            if (!sheet.data[row][col]) sheet.data[row][col] = { style: {} };
+            
+            sheet.data[row][col].style.fontFamily = fontFamily;
+        });
+        this.render();
+    }
+    
+    setFontSize(fontSize) {
+        const sheet = this.activeSheet;
+        this.selectedCells.forEach(cellRef => {
+            const { row, col } = this.parseCellRef(cellRef);
+            if (!sheet.data[row]) sheet.data[row] = {};
+            if (!sheet.data[row][col]) sheet.data[row][col] = { style: {} };
+            
+            sheet.data[row][col].style.fontSize = fontSize + 'px';
+        });
+        this.render();
+    }
+    
+    setBackgroundColor(color) {
+        const sheet = this.activeSheet;
+        this.selectedCells.forEach(cellRef => {
+            const { row, col } = this.parseCellRef(cellRef);
+            if (!sheet.data[row]) sheet.data[row] = {};
+            if (!sheet.data[row][col]) sheet.data[row][col] = { style: {} };
+            
+            sheet.data[row][col].style.backgroundColor = color;
+        });
+        this.render();
+    }
+    
+    setTextColor(color) {
+        const sheet = this.activeSheet;
+        this.selectedCells.forEach(cellRef => {
+            const { row, col } = this.parseCellRef(cellRef);
+            if (!sheet.data[row]) sheet.data[row] = {};
+            if (!sheet.data[row][col]) sheet.data[row][col] = { style: {} };
+            
+            sheet.data[row][col].style.color = color;
+        });
+        this.render();
+    }
+    
+    setCellType(type) {
+        const sheet = this.activeSheet;
+        this.selectedCells.forEach(cellRef => {
+            const { row, col } = this.parseCellRef(cellRef);
+            if (!sheet.data[row]) sheet.data[row] = {};
+            if (!sheet.data[row][col]) sheet.data[row][col] = { style: {} };
             
             sheet.data[row][col].type = type;
-            
-            const value = sheet.data[row][col].value;
-            if (value !== '') {
-                this.setCellValue(sheet, row, col, value);
-            }
         });
-        
         this.render();
     }
     
+    // Métodos de inserção/exclusão
     insertRow() {
         const sheet = this.activeSheet;
-        const newRowIndex = this.selectedCells[0] ? this.selectedCells[0].row + 1 : sheet.rows.length;
+        const lastRow = sheet.rows.length;
         
-        sheet.rows.splice(newRowIndex, 0, null);
-        
-        const newData = {};
-        for (let i = 0; i < sheet.rows.length; i++) {
-            if (i < newRowIndex) {
-                newData[i] = sheet.data[i];
-            } else if (i > newRowIndex) {
-                newData[i] = sheet.data[i - 1];
-            } else {
-                newData[i] = {};
-            }
+        // Adicionar nova linha
+        for (let i = 0; i < 10; i++) {
+            this.ensureRow(sheet, lastRow + i);
         }
-        
-        sheet.data = newData;
         
         this.render();
         this.updateRowCount();
     }
     
-    deleteRow() {
+    deleteRow(rowIndex = null) {
         const sheet = this.activeSheet;
         
-        if (sheet.rows.length <= 1) {
-            alert('Não é possível excluir a última linha!');
-            return;
+        if (rowIndex === null) {
+            rowIndex = sheet.rows.length - 1;
         }
         
-        const deleteRowIndex = this.selectedCells[0] ? this.selectedCells[0].row : 0;
-        
-        sheet.rows.splice(deleteRowIndex, 1);
-        
-        const newData = {};
-        const newRows = [];
-        
-        for (let i = 0; i < sheet.rows.length; i++) {
-            const oldIndex = i >= deleteRowIndex ? i + 1 : i;
-            newData[i] = sheet.data[oldIndex] || {};
-            newRows.push(null);
+        // Excluir linha
+        if (sheet.data[rowIndex]) {
+            delete sheet.data[rowIndex];
         }
         
-        sheet.rows = newRows;
-        sheet.data = newData;
+        // Reorganizar dados
+        for (let i = rowIndex; i < sheet.rows.length - 1; i++) {
+            sheet.data[i] = sheet.data[i + 1] || {};
+        }
         
-        this.selectedCells = [];
+        if (sheet.data[sheet.rows.length - 1]) {
+            delete sheet.data[sheet.rows.length - 1];
+        }
+        
+        sheet.rows.pop();
         
         this.render();
         this.updateRowCount();
     }
     
-    insertColumn() {
+    insertCol() {
         const sheet = this.activeSheet;
-        const newColIndex = this.selectedCells[0] ? this.selectedCells[0].col + 1 : sheet.cols;
-        
         sheet.cols++;
-        
-        Object.keys(sheet.data).forEach(rowKey => {
-            const row = sheet.data[rowKey];
-            const newRow = {};
-            
-            for (let i = 0; i < sheet.cols; i++) {
-                if (i < newColIndex) {
-                    newRow[i] = row[i];
-                } else if (i > newColIndex) {
-                    newRow[i] = row[i - 1];
-                }
-            }
-            
-            sheet.data[rowKey] = newRow;
-        });
+        sheet.colWidths.push(100);
         
         this.render();
-        this.updateRowCount();
     }
     
-    deleteColumn() {
+    deleteCol(colIndex = null) {
         const sheet = this.activeSheet;
         
-        if (sheet.cols <= 1) {
-            alert('Não é possível excluir a última coluna!');
-            return;
+        if (colIndex === null) {
+            colIndex = sheet.cols - 1;
         }
         
-        const deleteColIndex = this.selectedCells[0] ? this.selectedCells[0].col : 0;
+        // Excluir coluna
+        Object.keys(sheet.data).forEach(rowKey => {
+            if (sheet.data[rowKey][colIndex]) {
+                delete sheet.data[rowKey][colIndex];
+            }
+            // Reorganizar colunas
+            for (let i = colIndex; i < sheet.cols - 1; i++) {
+                sheet.data[rowKey][i] = sheet.data[rowKey][i + 1] || {};
+            }
+            if (sheet.data[rowKey][sheet.cols - 1]) {
+                delete sheet.data[rowKey][sheet.cols - 1];
+            }
+        });
         
         sheet.cols--;
+        sheet.colWidths.pop();
         
-        Object.keys(sheet.data).forEach(rowKey => {
-            const row = sheet.data[rowKey];
-            const newRow = {};
-            
-            for (let i = 0; i < sheet.cols; i++) {
-                const oldIndex = i >= deleteColIndex ? i + 1 : i;
-                newRow[i] = row[oldIndex];
-            }
-            
-            sheet.data[rowKey] = newRow;
-        });
+        this.render();
+    }
+    
+    insertRowAbove(rowIndex) {
+        const sheet = this.activeSheet;
         
-        this.selectedCells = [];
+        // Mover dados para baixo
+        for (let i = sheet.rows.length - 1; i >= rowIndex; i--) {
+            sheet.data[i + 1] = sheet.data[i] || {};
+        }
+        
+        sheet.data[rowIndex] = {};
+        sheet.rows.push(null);
         
         this.render();
         this.updateRowCount();
+    }
+    
+    insertRowBelow(rowIndex) {
+        const sheet = this.activeSheet;
+        
+        // Mover dados para baixo
+        for (let i = sheet.rows.length - 1; i > rowIndex; i--) {
+            sheet.data[i + 1] = sheet.data[i] || {};
+        }
+        
+        sheet.data[rowIndex + 1] = {};
+        sheet.rows.push(null);
+        
+        this.render();
+        this.updateRowCount();
+    }
+    
+    insertColLeft(colIndex) {
+        const sheet = this.activeSheet;
+        
+        // Mover colunas para direita
+        Object.keys(sheet.data).forEach(rowKey => {
+            for (let i = sheet.cols - 1; i >= colIndex; i--) {
+                sheet.data[rowKey][i + 1] = sheet.data[rowKey][i] || {};
+            }
+            sheet.data[rowKey][colIndex] = {};
+        });
+        
+        sheet.cols++;
+        sheet.colWidths.splice(colIndex, 0, 100);
+        
+        this.render();
+    }
+    
+    insertColRight(colIndex) {
+        const sheet = this.activeSheet;
+        
+        // Mover colunas para direita
+        Object.keys(sheet.data).forEach(rowKey => {
+            for (let i = sheet.cols - 1; i > colIndex; i--) {
+                sheet.data[rowKey][i + 1] = sheet.data[rowKey][i] || {};
+            }
+            sheet.data[rowKey][colIndex + 1] = {};
+        });
+        
+        sheet.cols++;
+        sheet.colWidths.splice(colIndex + 1, 0, 100);
+        
+        this.render();
+    }
+    
+    // Métodos de clipboard
+    copyCell(row, col) {
+        const sheet = this.activeSheet;
+        const cellData = sheet.data[row] && sheet.data[row][col];
+        
+        if (cellData) {
+            this.clipboard = JSON.parse(JSON.stringify(cellData));
+        }
+    }
+    
+    pasteCell(row, col) {
+        if (this.clipboard.length === 0) return;
+        
+        const sheet = this.activeSheet;
+        if (!sheet.data[row]) sheet.data[row] = {};
+        sheet.data[row][col] = JSON.parse(JSON.stringify(this.clipboard));
+        
+        this.render();
+    }
+    
+    cutCell(row, col) {
+        this.copyCell(row, col);
+        this.clearCell(row, col);
+    }
+    
+    clearCell(row, col) {
+        const sheet = this.activeSheet;
+        if (sheet.data[row]) {
+            delete sheet.data[row][col];
+        }
+        this.render();
+    }
+    
+    formatCell(row, col) {
+        const sheet = this.activeSheet;
+        const cellData = sheet.data[row] && sheet.data[row][col];
+        
+        if (cellData) {
+            // Abrir dialog de formatação
+            alert(`Célula ${this.getCellRef(row, col)}:\nValor: ${cellData.value || 'vazio'}\nTipo: ${cellData.type}`);
+        }
+    }
+    
+    selectRow(rowIndex) {
+        // Selecionar linha inteira
+        this.selectedCells = [];
+        for (let col = 0; col < this.activeSheet.cols; col++) {
+            this.selectedCells.push(this.getCellRef(rowIndex, col));
+        }
+        this.render();
+    }
+    
+    selectColumn(colIndex) {
+        // Selecionar coluna inteira
+        this.selectedCells = [];
+        for (let row = 0; row < this.activeSheet.rows.length; row++) {
+            this.selectedCells.push(this.getCellRef(row, colIndex));
+        }
+        this.render();
     }
     
     bindEvents() {
-        document.addEventListener('mousemove', (e) => {
-            if (this.isSelecting) {
-                const cell = e.target;
-                if (cell.classList.contains('cell') && !cell.classList.contains('header')) {
-                    const row = parseInt(cell.dataset.row);
-                    const col = parseInt(cell.dataset.col);
-                    this.selectRange(this.selectionStart.row, this.selectionStart.col, row, col);
-                }
-            }
-        });
-        
-        document.addEventListener('mouseup', () => {
-            this.isSelecting = false;
-            this.selectionStart = null;
-        });
-        
+        // Eventos do teclado
         document.addEventListener('keydown', (e) => {
-            if (this.isEditing) return;
-            
-            // Atalhos de teclado
-            if (e.ctrlKey || e.metaKey) {
-                switch(e.key.toLowerCase()) {
-                    case 'c':
-                        e.preventDefault();
-                        this.copySelection();
-                        break;
-                    case 'v':
-                        e.preventDefault();
-                        this.pasteSelection();
-                        break;
-                    case 'z':
-                        e.preventDefault();
-                        if (e.shiftKey) {
-                            this.redo();
-                        } else {
-                            this.undo();
-                        }
-                        break;
-                    case 'y':
-                        e.preventDefault();
-                        this.redo();
-                        break;
-                    case 'f':
-                        e.preventDefault();
-                        document.getElementById('searchInput').focus();
-                        break;
+            if (e.ctrlKey && e.key === 'b') {
+                e.preventDefault();
+                this.toggleBold();
+            } else if (e.ctrlKey && e.key === 'i') {
+                e.preventDefault();
+                this.toggleItalic();
+            } else if (e.ctrlKey && e.key === 'c') {
+                e.preventDefault();
+                if (this.selectedCells.length > 0) {
+                    const firstCell = this.parseCellRef(this.selectedCells[0]);
+                    this.copyCell(firstCell.row, firstCell.col);
+                }
+            } else if (e.ctrlKey && e.key === 'v') {
+                e.preventDefault();
+                if (this.selectedCells.length > 0) {
+                    const firstCell = this.parseCellRef(this.selectedCells[0]);
+                    this.pasteCell(firstCell.row, firstCell.col);
+                }
+            } else if (e.ctrlKey && e.key === 'x') {
+                e.preventDefault();
+                if (this.selectedCells.length > 0) {
+                    const firstCell = this.parseCellRef(this.selectedCells[0]);
+                    this.cutCell(firstCell.row, firstCell.col);
+                }
+            } else if (e.key === 'Delete' || e.key === 'Backspace') {
+                if (this.selectedCells.length > 0 && !this.isEditing) {
+                    const firstCell = this.parseCellRef(this.selectedCells[0]);
+                    this.clearCell(firstCell.row, firstCell.col);
                 }
             }
-            
-            const { row, col } = this.selectedCells[0] || { row: 0, col: 0 };
-            
-            switch(e.key) {
-                case 'ArrowUp':
-                    e.preventDefault();
-                    this.moveSelection(row - 1, col);
-                    break;
-                case 'ArrowDown':
-                    e.preventDefault();
-                    this.moveSelection(row + 1, col);
-                    break;
-                case 'ArrowLeft':
-                    e.preventDefault();
-                    this.moveSelection(row, col - 1);
-                    break;
-                case 'ArrowRight':
-                    e.preventDefault();
-                    this.moveSelection(row, col + 1);
-                    break;
-                case 'Enter':
-                    e.preventDefault();
-                    this.moveSelection(row + 1, col);
-                    break;
-                case 'Tab':
-                    e.preventDefault();
-                    this.moveSelection(row, col + 1);
-                    break;
-                case 'Delete':
-                    e.preventDefault();
-                    this.clearSelection();
-                    break;
+        });
+        
+        // Eventos da barra de fórmula
+        const formulaInput = document.getElementById('formulaInput');
+        formulaInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                if (this.selectedCells.length > 0) {
+                    const firstCell = this.parseCellRef(this.selectedCells[0]);
+                    this.setCellValue(this.activeSheet, firstCell.row, firstCell.col, formulaInput.value);
+                    this.render();
+                    formulaInput.value = '';
+                }
             }
         });
     }
     
-    moveSelection(row, col) {
-        row = Math.max(0, Math.min(row, this.activeSheet.rows.length - 1));
-        col = Math.max(0, Math.min(col, this.activeSheet.cols - 1));
+    updateSheetTabs() {
+        const sheetsContainer = document.getElementById('sheets');
         
-        const cell = document.querySelector(`.cell[data-row="${row}"][data-col="${col}"]`);
-        if (cell) {
-            cell.click();
-            cell.focus(); // Focar na célula para receber eventos de teclado
-        }
+        // Remover tabs existentes (exceto botão de adicionar)
+        const existingTabs = sheetsContainer.querySelectorAll('.sheet-tab');
+        existingTabs.forEach(tab => tab.remove());
+        
+        // Adicionar tabs
+        this.sheets.forEach((sheet, index) => {
+            const tab = document.createElement('div');
+            tab.className = 'sheet-tab' + (index === this.sheets.indexOf(this.activeSheet) ? ' active' : '');
+            
+            const input = document.createElement('input');
+            input.value = sheet.name;
+            input.readOnly = true;
+            
+            input.addEventListener('dblclick', () => {
+                input.readOnly = false;
+                input.focus();
+                input.select();
+            });
+            
+            input.addEventListener('blur', () => {
+                input.readOnly = true;
+                sheet.name = input.value;
+            });
+            
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    input.blur();
+                }
+            });
+            
+            tab.appendChild(input);
+            
+            tab.addEventListener('click', () => {
+                this.activeSheet = sheet;
+                this.render();
+                this.updateSheetTabs();
+            });
+            
+            sheetsContainer.insertBefore(tab, sheetsContainer.lastChild);
+        });
     }
     
-    selectRange(startRow, startCol, endRow, endCol) {
-        this.selectedCells = [];
+    exportToExcel() {
+        const wb = XLSX.utils.book_new();
         
-        const minRow = Math.min(startRow, endRow);
-        const maxRow = Math.max(startRow, endRow);
-        const minCol = Math.min(startCol, endCol);
-        const maxCol = Math.max(startCol, endCol);
-        
-        document.querySelectorAll('.cell.selected').forEach(cell => {
-            cell.classList.remove('selected');
+        this.sheets.forEach((sheet, index) => {
+            const data = [];
+            
+            // Criar cabeçalho
+            const header = [];
+            for (let col = 0; col < sheet.cols; col++) {
+                header.push(this.getColumnName(col));
+            }
+            data.push(header);
+            
+            // Adicionar dados
+            for (let row = 0; row < sheet.rows.length; row++) {
+                const rowData = [];
+                for (let col = 0; col < sheet.cols; col++) {
+                    const cellData = sheet.data[row] && sheet.data[row][col];
+                    rowData.push(cellData ? cellData.value || '' : '');
+                }
+                data.push(rowData);
+            }
+            
+            const ws = XLSX.utils.aoa_to_sheet(data);
+            XLSX.utils.book_append_sheet(wb, ws, sheet.name || `Planilha${index + 1}`);
         });
         
-        for (let r = minRow; r <= maxRow; r++) {
-            for (let c = minCol; c <= maxCol; c++) {
-                this.selectedCells.push({ row: r, col: c });
-                const cell = document.querySelector(`.cell[data-row="${r}"][data-col="${c}"]`);
-                if (cell) {
-                    cell.classList.add('selected');
-                }
-            }
-        }
-        
-        this.updateToolbarState(endRow, endCol);
+        XLSX.writeFile(wb, 'planilha.xlsx');
     }
 }
 
-// Initialize application
+// Inicializar planilha
 document.addEventListener('DOMContentLoaded', () => {
-    const app = new Spreadsheet();
+    window.spreadsheet = new Spreadsheet();
 });
