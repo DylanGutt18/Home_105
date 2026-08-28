@@ -508,3 +508,262 @@ body {
     border-color: #1a73e8;
     color: #1a73e8;
 }
+
+/* Adicione estas regras ao final do style.css */
+
+/* Responsividade */
+@media (max-width: 768px) {
+    /* Toolbar mobile */
+    .mobile-menu-btn {
+        display: flex;
+        width: 40px;
+        height: 40px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        background: white;
+        cursor: pointer;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+        margin-right: 10px;
+    }
+    
+    .toolbar {
+        padding: 5px;
+        gap: 5px;
+    }
+    
+    .toolbar-content {
+        display: none;
+        position: absolute;
+        top: 50px;
+        left: 0;
+        right: 0;
+        background: white;
+        border-bottom: 1px solid #ccc;
+        padding: 10px;
+        z-index: 1000;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .toolbar-content.show {
+        display: flex;
+    }
+    
+    .toolbar-group {
+        flex-wrap: wrap;
+        border-right: none;
+        border-bottom: 1px solid #eee;
+        padding: 5px 0;
+    }
+    
+    .toolbar-group:last-child {
+        border-bottom: none;
+    }
+    
+    /* Ajustar células para touch */
+    .cell {
+        min-width: 80px;
+        min-height: 40px;
+        padding: 6px;
+        font-size: 14px;
+        -webkit-tap-highlight-color: transparent;
+    }
+    
+    .cell.header {
+        min-width: 40px;
+        font-size: 12px;
+    }
+    
+    /* Formula bar mobile */
+    .formula-bar {
+        padding: 8px;
+        flex-wrap: wrap;
+    }
+    
+    #cellRef {
+        width: 60px;
+    }
+    
+    #formulaInput {
+        font-size: 16px; /* Evitar zoom no iOS */
+    }
+    
+    /* Sheets tabs mobile */
+    .sheets-container {
+        padding: 5px;
+    }
+    
+    .sheet-tab {
+        padding: 6px 10px;
+        font-size: 12px;
+    }
+    
+    .sheet-tab input {
+        width: 60px;
+        font-size: 12px;
+    }
+    
+    /* Scrollbar mais fina para mobile */
+    ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
+    
+    /* Context menu mobile */
+    .context-menu {
+        position: fixed;
+        left: 50% !important;
+        transform: translateX(-50%);
+        bottom: 60px;
+        top: auto !important;
+        width: 90%;
+        max-width: 300px;
+    }
+    
+    /* Export button mobile */
+    .export-btn {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    /* Status bar mobile */
+    .status-bar {
+        display: none;
+    }
+}
+
+/* Para telas muito pequenas (celulares) */
+@media (max-width: 480px) {
+    .toolbar-btn {
+        width: 32px;
+        height: 32px;
+        font-size: 14px;
+    }
+    
+    .cell {
+        min-width: 70px;
+        min-height: 35px;
+        font-size: 13px;
+    }
+    
+    .cell.header.row-header {
+        min-width: 30px;
+    }
+    
+    .add-sheet-btn {
+        width: 30px;
+        height: 30px;
+    }
+    
+    /* Ajustar selects na toolbar */
+    .toolbar select {
+        max-width: 120px;
+        font-size: 12px;
+    }
+    
+    /* Melhorar touch experience */
+    .cell:active {
+        background: #e8f0fe;
+    }
+    
+    .toolbar-btn:active {
+        background: #e8f0fe;
+    }
+}
+
+/* Melhorias gerais para mobile */
+.mobile-menu-btn {
+    display: none;
+}
+
+/* Ajustar tamanho mínimo da célula */
+@media (hover: none) and (pointer: coarse) {
+    .cell {
+        -webkit-user-select: none;
+        user-select: none;
+    }
+    
+    .cell.editing input {
+        -webkit-user-select: text;
+        user-select: text;
+        font-size: 16px; /* Evitar zoom */
+    }
+    
+    .cell:focus {
+        outline: 2px solid #1a73e8;
+    }
+}
+
+/* Modo paisagem no celular */
+@media (max-height: 500px) and (max-width: 900px) {
+    .toolbar {
+        max-height: 50px;
+        overflow: hidden;
+    }
+    
+    .spreadsheet-container {
+        min-height: 300px;
+    }
+}
+
+/* Ajustes para orientação retrato */
+@media (orientation: portrait) {
+    .app {
+        flex-direction: column;
+    }
+    
+    .spreadsheet-container {
+        flex: 1;
+    }
+}
+
+/* Melhorar o container de planilha no mobile */
+.spreadsheet-container {
+    -webkit-overflow-scrolling: touch; /* Scroll suave no iOS */
+    overscroll-behavior: contain;
+}
+
+/* Ajustar sidebar/header para mobile */
+.row-numbers {
+    min-width: 30px;
+}
+
+/* Esconder labels no mobile para economizar espaço */
+@media (max-width: 768px) {
+    .toolbar label {
+        display: none;
+    }
+    
+    .toolbar input[type="color"] {
+        width: 30px;
+        height: 30px;
+        padding: 2px;
+    }
+    
+    .toolbar select {
+        font-size: 13px;
+    }
+}
+
+/* Transição suave do menu mobile */
+.toolbar-content {
+    transition: all 0.3s ease;
+}
+
+.toolbar-content.show {
+    animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
