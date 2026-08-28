@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Planilha Web</title>
     <link rel="stylesheet" href="style.css">
 </head>
@@ -10,54 +10,59 @@
     <div class="app">
         <!-- Toolbar -->
         <div class="toolbar">
-            <div class="toolbar-group">
-                <select id="fontFamily" title="Fonte">
-                    <option value="Arial">Arial</option>
-                    <option value="Calibri">Calibri</option>
-                    <option value="Times New Roman">Times New Roman</option>
-                    <option value="Verdana">Verdana</option>
-                    <option value="Courier New">Courier New</option>
-                </select>
-                <select id="fontSize" title="Tamanho da fonte">
-                    <option value="10">10</option>
-                    <option value="11">11</option>
-                    <option value="12" selected>12</option>
-                    <option value="14">14</option>
-                    <option value="16">16</option>
-                    <option value="18">18</option>
-                    <option value="20">20</option>
-                    <option value="24">24</option>
-                </select>
-                <button class="toolbar-btn" id="boldBtn" title="Negrito"><b>B</b></button>
-                <button class="toolbar-btn" id="italicBtn" title="Itálico"><i>I</i></button>
-            </div>
+            <!-- Menu hamburger para mobile -->
+            <button class="mobile-menu-btn" id="mobileMenuBtn">☰</button>
+            
+            <div class="toolbar-content" id="toolbarContent">
+                <div class="toolbar-group">
+                    <select id="fontFamily" title="Fonte">
+                        <option value="Arial">Arial</option>
+                        <option value="Calibri">Calibri</option>
+                        <option value="Times New Roman">Times New Roman</option>
+                        <option value="Verdana">Verdana</option>
+                        <option value="Courier New">Courier New</option>
+                    </select>
+                    <select id="fontSize" title="Tamanho da fonte">
+                        <option value="10">10</option>
+                        <option value="11">11</option>
+                        <option value="12" selected>12</option>
+                        <option value="14">14</option>
+                        <option value="16">16</option>
+                        <option value="18">18</option>
+                        <option value="20">20</option>
+                        <option value="24">24</option>
+                    </select>
+                    <button class="toolbar-btn" id="boldBtn" title="Negrito"><b>B</b></button>
+                    <button class="toolbar-btn" id="italicBtn" title="Itálico"><i>I</i></button>
+                </div>
 
-            <div class="toolbar-group">
-                <label for="bgColor">Cor de fundo:</label>
-                <input type="color" id="bgColor" value="#ffffff">
-                <label for="textColor">Cor do texto:</label>
-                <input type="color" id="textColor" value="#000000">
-            </div>
+                <div class="toolbar-group">
+                    <label for="bgColor">Cor de fundo:</label>
+                    <input type="color" id="bgColor" value="#ffffff">
+                    <label for="textColor">Cor do texto:</label>
+                    <input type="color" id="textColor" value="#000000">
+                </div>
 
-            <div class="toolbar-group">
-                <select id="cellType" title="Tipo de valor">
-                    <option value="text">Texto</option>
-                    <option value="number">Número</option>
-                    <option value="currency">Moeda (R$)</option>
-                </select>
-            </div>
+                <div class="toolbar-group">
+                    <select id="cellType" title="Tipo de valor">
+                        <option value="text">Texto</option>
+                        <option value="number">Número</option>
+                        <option value="currency">Moeda (R$)</option>
+                    </select>
+                </div>
 
-            <div class="toolbar-group">
-                <button class="toolbar-btn" id="insertRowBtn" title="Inserir linha">+ Linha</button>
-                <button class="toolbar-btn" id="deleteRowBtn" title="Excluir linha">- Linha</button>
-                <button class="toolbar-btn" id="insertColBtn" title="Inserir coluna">+ Coluna</button>
-                <button class="toolbar-btn" id="deleteColBtn" title="Excluir coluna">- Coluna</button>
-            </div>
+                <div class="toolbar-group">
+                    <button class="toolbar-btn" id="insertRowBtn" title="Inserir linha">+ Linha</button>
+                    <button class="toolbar-btn" id="deleteRowBtn" title="Excluir linha">- Linha</button>
+                    <button class="toolbar-btn" id="insertColBtn" title="Inserir coluna">+ Coluna</button>
+                    <button class="toolbar-btn" id="deleteColBtn" title="Excluir coluna">- Coluna</button>
+                </div>
 
-            <div class="toolbar-group">
-                <button class="toolbar-btn export-btn" id="exportBtn" title="Exportar para Excel">
-                    <span>📊</span> Exportar
-                </button>
+                <div class="toolbar-group">
+                    <button class="toolbar-btn export-btn" id="exportBtn" title="Exportar para Excel">
+                        <span>📊</span> Exportar
+                    </button>
+                </div>
             </div>
         </div>
 
